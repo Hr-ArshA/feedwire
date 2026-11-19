@@ -117,6 +117,12 @@ const SCHEMA = `
   ALTER TABLE items ADD COLUMN IF NOT EXISTS content_embedding real[];
   ALTER TABLE items ADD COLUMN IF NOT EXISTS content_embedding_model text;
 
+  -- Google News RSS links are opaque redirects; the publisher URL they point
+  -- to is resolved once and cached here so every reader reuses it.
+  ALTER TABLE items ADD COLUMN IF NOT EXISTS resolved_link text;
+  ALTER TABLE items ADD COLUMN IF NOT EXISTS resolved_link_at timestamptz;
+  ALTER TABLE items ADD COLUMN IF NOT EXISTS resolved_link_error text;
+
   CREATE INDEX IF NOT EXISTS items_content_pending_idx
     ON items(id) WHERE content_embedding IS NULL AND content_text IS NOT NULL;
 

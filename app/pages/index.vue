@@ -17,6 +17,8 @@ const {
 
 useHead({ title: 'Feedwire · Hacker News and your own feeds' });
 
+definePageMeta({ middleware: 'home-redirect' });
+
 onMounted(async () => {
   loadOpenMode();
   await Promise.all([loadItems(), loadCategories()]);

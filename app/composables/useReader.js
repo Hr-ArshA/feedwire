@@ -262,10 +262,11 @@ export function useReader(key = 'reader') {
 
   function openItem(item) {
     if (import.meta.client) {
+      const target = item.resolved_link || item.link;
       if (state.value.openMode === 'internal') {
         navigateTo(`/item/${item.id}`);
-      } else if (item.link) {
-        window.open(item.link, '_blank', 'noopener,noreferrer');
+      } else if (target) {
+        window.open(target, '_blank', 'noopener,noreferrer');
       }
     }
     if (!publicMode && !item.is_read) toggleRead(item, true);

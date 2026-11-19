@@ -22,7 +22,7 @@ const props = defineProps({
 const emit = defineEmits(['open', 'read-here', 'toggle-read', 'toggle-favorite']);
 
 const meta = computed(() => ({
-  host: hostOf(props.item.link),
+  host: hostOf(props.item.resolved_link || props.item.link),
   time: timeAgo(props.item.published_at || props.item.fetched_at),
 }));
 
@@ -57,7 +57,7 @@ const categoryName = computed(
     <div class="min-w-0 flex-1">
       <h3 class="m-0 text-[15px] leading-snug font-semibold tracking-tight">
         <a
-          :href="item.link || '#'"
+          :href="item.resolved_link || item.link || '#'"
           target="_blank"
           rel="noopener noreferrer"
           :class="

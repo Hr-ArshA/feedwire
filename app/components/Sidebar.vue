@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import {
   ChevronDown,
   Download,
@@ -10,6 +10,7 @@ import {
   Upload,
 } from '@lucide/vue';
 import { hostOf } from '@/utils/format.js';
+import { categoryActive, categoryDot } from '@/lib/categories.js';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
@@ -20,8 +21,15 @@ import {
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
-const { state, setView, refreshFeed, removeFeed, importOpml, exportOpml } =
-  useReader();
+const {
+  state,
+  setView,
+  setCategory,
+  refreshFeed,
+  removeFeed,
+  importOpml,
+  exportOpml,
+} = useReader();
 
 const fileInput = ref(null);
 const feedsOpen = ref(false);
@@ -32,6 +40,12 @@ const views = [
   { id: 'unread', label: 'Unread', icon: RefreshCw, count: () => state.value.stats.unread },
   { id: 'favorite', label: 'Favorites', icon: Star, count: () => state.value.stats.favorites },
 ];
+
+const visibleCategories = computed(() =>
+  state.value.categories.filter(
+    (category) => category.count || state.value.category === category.id
+  )
+);
 
 function confirmRemove(feed) {
   if (window.confirm(`Unsubscribe from "${feed.title}"?`)) {
@@ -50,7 +64,7 @@ async function onFile(event) {
 </script>
 
 <template>
-  <aside class="flex flex-col gap-5 lg:sticky lg:top-[86px]">
+  <aside class="flex flex-col gap-4 lg:sticky lg:top-[86px] lg:gap-5">
     <nav class="flex flex-row gap-1 overflow-x-auto lg:flex-col lg:overflow-visible">
       <button
         v-for="view in views"
@@ -58,7 +72,7 @@ async function onFile(event) {
         type="button"
         :class="
           cn(
-            'flex shrink-0 items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/40',
+            'flex shrink-0 items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/40 lg:py-2',
             state.view.kind === view.id
               ? 'bg-primary/12 font-semibold text-primary'
               : 'text-muted-foreground hover:bg-accent hover:text-foreground'
@@ -83,6 +97,59 @@ async function onFile(event) {
       </button>
     </nav>
 
+    <div class="hidden lg:block">
+      <p
+        class="mb-2 px-2.5 text-[11px] font-bold tracking-[0.08em] text-muted-foreground uppercase"
+      >
+        Topics
+      </p>
+      <ul class="flex flex-col gap-0.5">
+        <li>
+          <button
+            type="button"
+            :aria-pressed="!state.category"
+            :class="
+              cn(
+                'flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-sm outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/40',
+                !state.category
+                  ? 'bg-primary/12 font-semibold text-primary'
+                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+              )
+            "
+            @click="setCategory(null)"
+          >
+            <span class="size-1.5 rounded-full bg-primary" aria-hidden="true" />
+            All topics
+          </button>
+        </li>
+        <li v-for="category in visibleCategories" :key="category.id">
+          <button
+            type="button"
+            :title="category.fa"
+            :aria-pressed="state.category === category.id"
+            :class="
+              cn(
+                'flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-sm outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/40',
+                state.category === category.id
+                  ? cn('font-semibold', categoryActive(category.id))
+                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+              )
+            "
+            @click="setCategory(category.id)"
+          >
+            <span
+              :class="cn('size-1.5 rounded-full', categoryDot(category.id))"
+              aria-hidden="true"
+            />
+            <span class="truncate">{{ category.label }}</span>
+            <span class="ml-auto text-xs tabular-nums opacity-60">
+              {{ category.count }}
+            </span>
+          </button>
+        </li>
+      </ul>
+    </div>
+
     <div>
       <button
         type="button"
@@ -103,7 +170,7 @@ async function onFile(event) {
 
       <div :class="feedsOpen ? 'block' : 'hidden lg:block'">
       <ScrollArea class="max-h-[46vh] lg:max-h-[60vh]">
-        <ul class="flex flex-row gap-1.5 pr-2 pb-1 lg:flex-col lg:gap-0.5">
+        <ul class="flex flex-row flex-wrap gap-1.5 pr-2 pb-1 lg:flex-col lg:flex-nowrap lg:gap-0.5">
           <li
             v-for="feed in state.feeds"
             :key="feed.id"

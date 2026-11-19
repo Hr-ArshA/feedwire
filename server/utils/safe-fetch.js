@@ -111,6 +111,9 @@ export async function safeFetch(rawUrl, options = {}) {
     timeoutMs = 20_000,
     accept = '*/*',
     userAgent = 'Feedwire/2.0 (+self-hosted RSS reader)',
+    method = 'GET',
+    body = undefined,
+    headers: extraHeaders = {},
   } = options;
 
   let current = await assertPublicUrl(rawUrl);
@@ -129,9 +132,11 @@ export async function safeFetch(rawUrl, options = {}) {
       let response;
       try {
         response = await fetch(current, {
+          method,
+          ...(body !== undefined ? { body } : {}),
           redirect: 'manual',
           signal: controller.signal,
-          headers: { accept, 'user-agent': userAgent },
+          headers: { accept, 'user-agent': userAgent, ...extraHeaders },
         });
       } catch (error) {
         throw new Error(

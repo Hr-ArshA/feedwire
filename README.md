@@ -41,6 +41,11 @@ subscribers left and is not the public feed.
   Feedwire (`/item/:id`). The extracted article is stored once on the shared
   `items` row, so two users opening the same link never download or embed it
   twice. A per-user toggle switches between "Read here" and "Original".
+- **Google News feeds**: entries whose link is
+  `news.google.com/rss/articles/…` are resolved to the real publisher URL
+  before extraction (`server/utils/google-news.js`). The redirect is decoded
+  through Google's `batchexecute` endpoint, cached in Redis for a week and
+  stored on `items.resolved_link`, so a story is only resolved once.
 - **Export**: from the reader, download the article as HTML, Markdown or plain
   text (`/api/items/:id/export?format=…`), or print it to PDF from the
   chrome-free `/print/:id` page.
@@ -108,6 +113,8 @@ with anything already running on the default ports.
   with an allow-list, images rewritten to `/api/proxy/image`.
 - `server/utils/article-store.js` — single-flight download per story, cached
   in `items.content_*` and shared across users.
+- `server/utils/google-news.js` — turns opaque Google News RSS links into the
+  publisher URL (batchexecute + markup fallback, Redis cache).
 - `server/utils/safe-fetch.js` — SSRF guard (DNS + private/link-local/CGNAT
   checks on every redirect hop) used by feeds, articles and the image proxy.
 - `server/utils/translate.js` — chunking (< 4000 chars), Google Translate calls,
@@ -135,6 +142,7 @@ items(id, feed_id, guid, title, link, author, summary, comments_url,
       category, category_score, category_source,
       content_html, content_text, content_fetched_at, content_error,
       content_embedding real[], content_embedding_model,
+      resolved_link, resolved_link_at, resolved_link_error,
       UNIQUE(feed_id, guid))
 subscriptions(user_id, feed_id, PRIMARY KEY(user_id, feed_id))
 user_items(user_id, item_id, is_read, is_favorite, PRIMARY KEY(user_id, item_id))

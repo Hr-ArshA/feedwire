@@ -1,6 +1,12 @@
 <script setup>
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
-import { Loader2, RefreshCw, Search } from '@lucide/vue';
+import {
+  HardDriveDownload,
+  Layers,
+  Loader2,
+  RefreshCw,
+  Search,
+} from '@lucide/vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -60,6 +66,10 @@ function clearSearch() {
   setQuery('');
 }
 
+function focusSearch() {
+  search.value?.$el?.focus();
+}
+
 async function select(index) {
   const item = state.value.items[index];
   if (!item) return;
@@ -114,7 +124,7 @@ function onKeydown(event) {
       break;
     case '/':
       event.preventDefault();
-      search.value?.$el?.focus();
+      focusSearch();
       break;
     default:
       break;
@@ -143,13 +153,13 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    class="mx-auto grid max-w-[1180px] grid-cols-1 items-start gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[258px_minmax(0,1fr)] lg:gap-7"
+    class="mx-auto grid max-w-[1180px] grid-cols-1 items-start gap-6 px-4 py-5 pb-24 sm:px-6 sm:py-6 lg:grid-cols-[258px_minmax(0,1fr)] lg:gap-7 lg:pb-6"
   >
     <Sidebar />
 
     <main class="min-w-0 pb-10">
-      <div class="mb-3 flex flex-wrap items-center gap-2">
-        <AddFeedForm />
+      <div class="mb-3 hidden items-center gap-2 sm:flex">
+        <AddFeedDialog />
         <Button
           variant="outline"
           class="shrink-0"
@@ -180,7 +190,7 @@ onBeforeUnmount(() => {
           </span>
         </div>
 
-        <div class="flex w-full items-center gap-2 sm:w-auto">
+        <div class="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
           <ToggleGroup
             v-if="state.query"
             :model-value="state.mode"
@@ -197,7 +207,9 @@ onBeforeUnmount(() => {
             </ToggleGroupItem>
           </ToggleGroup>
 
-          <div class="relative flex min-w-0 flex-1 items-center sm:flex-none">
+          <div
+            class="relative flex min-w-0 flex-1 basis-full items-center sm:basis-auto sm:flex-none"
+          >
             <Search
               class="pointer-events-none absolute left-3 size-3.5 text-muted-foreground"
               aria-hidden="true"
@@ -216,6 +228,17 @@ onBeforeUnmount(() => {
           <Button variant="outline" class="shrink-0" @click="markAllRead">
             <span class="hidden sm:inline">Mark all read</span>
             <span class="sm:hidden">Read all</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="icon-sm"
+            class="shrink-0 sm:hidden"
+            :disabled="state.refreshing"
+            aria-label="Refresh all feeds"
+            @click="refreshAll"
+          >
+            <RefreshCw :class="cn(state.refreshing && 'animate-spin')" />
           </Button>
 
           <ToggleGroup
@@ -238,6 +261,7 @@ onBeforeUnmount(() => {
       </div>
 
       <CategoryChips
+        class="lg:hidden"
         :categories="state.categories"
         :active="state.category"
         @select="setCategory"
@@ -283,6 +307,39 @@ onBeforeUnmount(() => {
       </p>
     </main>
 
+    <AddFeedDialog mode="fab" />
+
+    <nav
+      class="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)] print:hidden lg:hidden"
+      aria-label="Mobile navigation"
+    >
+      <div class="mx-auto flex max-w-md items-stretch justify-around px-2">
+        <button
+          type="button"
+          class="flex flex-1 flex-col items-center gap-0.5 rounded-md py-2 text-[11px] font-medium text-primary outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/40"
+          @click="setView('all')"
+        >
+          <Layers class="size-5" />
+          Reader
+        </button>
+        <button
+          type="button"
+          class="flex flex-1 flex-col items-center gap-0.5 rounded-md py-2 text-[11px] font-medium text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
+          @click="focusSearch"
+        >
+          <Search class="size-5" />
+          Search
+        </button>
+        <NuxtLink
+          to="/saved"
+          class="flex flex-1 flex-col items-center gap-0.5 rounded-md py-2 text-[11px] font-medium text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
+        >
+          <HardDriveDownload class="size-5" />
+          Offline
+        </NuxtLink>
+      </div>
+    </nav>
+
     <Transition
       enter-active-class="transition duration-200 ease-out"
       enter-from-class="translate-y-2 opacity-0"
@@ -293,7 +350,7 @@ onBeforeUnmount(() => {
         v-if="state.toast"
         :class="
           cn(
-            'fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-lg border bg-popover px-4 py-2 text-sm shadow-lg',
+            'fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-lg border bg-popover px-4 py-2 text-sm shadow-lg lg:bottom-6',
             state.toast.type === 'error' && 'border-destructive/50 text-destructive'
           )
         "

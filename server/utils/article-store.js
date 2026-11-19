@@ -1,4 +1,5 @@
 import { extractArticle } from './article.js';
+import { isGoogleNewsUrl, resolveGoogleNewsUrl } from './google-news.js';
 
 const RETRY_AFTER_MS = 60 * 60 * 1000;
 const LOCK_WAIT_MS = 25_000;
@@ -22,7 +23,8 @@ function badRequest(message) {
  * exactly once no matter how many users open the same link.
  */
 const ITEM_SQL = `
-  SELECT i.id, i.title, i.link, i.author, i.summary, i.published_at, i.fetched_at,
+  SELECT i.id, i.title, i.link, i.resolved_link, i.author, i.summary,
+         i.published_at, i.fetched_at,
          i.category,
          i.content_html, i.content_text, i.content_fetched_at, i.content_error,
          (i.content_embedding IS NOT NULL) AS content_indexed,
@@ -47,6 +49,7 @@ function shape(row) {
     id: Number(row.id),
     title: row.title,
     link: row.link,
+    resolved_link: row.resolved_link ?? null,
     author: row.author,
     summary: row.summary,
     published_at: row.published_at,
@@ -102,23 +105,43 @@ export async function getArticle(itemId, userId = null) {
   }
 
   try {
-    const article = await extractArticle(row.link);
+    let target = row.resolved_link || row.link;
+    if (!row.resolved_link && isGoogleNewsUrl(row.link)) {
+      const resolved = await resolveGoogleNewsUrl(row.link);
+      await query(
+        `UPDATE items
+            SET resolved_link = $2, resolved_link_at = now(), resolved_link_error = NULL
+          WHERE id = $1`,
+        [itemId, resolved]
+      );
+      target = resolved;
+    }
+
+    const article = await extractArticle(target);
     await query(
       `UPDATE items
           SET content_html = $2,
               content_text = $3,
               content_fetched_at = now(),
-              content_error = NULL
+              content_error = NULL,
+              resolved_link = COALESCE(resolved_link, $4)
         WHERE id = $1`,
-      [itemId, article.html, article.text]
+      [itemId, article.html, article.text, article.finalUrl ?? null]
     );
     row = await loadItem(itemId, userId);
     return shape(row);
   } catch (error) {
     const message = String(error?.message ?? 'Could not load that page').slice(0, 500);
     await query(
-      `UPDATE items SET content_error = $2, content_fetched_at = now() WHERE id = $1`,
-      [itemId, message]
+      `UPDATE items
+          SET content_error = $2,
+              content_fetched_at = now(),
+              resolved_link_error = CASE
+                WHEN resolved_link IS NULL AND $3::boolean THEN $2
+                ELSE resolved_link_error
+              END
+        WHERE id = $1`,
+      [itemId, message, isGoogleNewsUrl(row.link)]
     );
     row = await loadItem(itemId, userId);
     return shape(row);

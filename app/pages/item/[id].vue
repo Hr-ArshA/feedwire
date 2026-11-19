@@ -50,7 +50,10 @@ const translateError = ref(null);
 const exporting = ref(null);
 const exportError = ref(null);
 
-const host = computed(() => hostOf(article.value?.link));
+const originalLink = computed(
+  () => article.value?.resolved_link || article.value?.link || null
+);
+const host = computed(() => hostOf(originalLink.value));
 const published = computed(() =>
   timeAgo(article.value?.published_at || article.value?.fetched_at)
 );
@@ -239,8 +242,8 @@ useHead(() => ({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Button v-if="article?.link" variant="outline" size="sm" as-child>
-          <a :href="article.link" target="_blank" rel="noopener noreferrer">
+        <Button v-if="originalLink" variant="outline" size="sm" as-child>
+          <a :href="originalLink" target="_blank" rel="noopener noreferrer">
             <span class="hidden sm:inline">Open original</span>
             <ExternalLink />
           </a>
@@ -283,8 +286,8 @@ useHead(() => ({
           <span v-if="host" class="hidden sm:inline">{{ host }}</span>
           <span v-if="published">{{ published }}</span>
           <a
-            v-if="article.link"
-            :href="article.link"
+            v-if="originalLink"
+            :href="originalLink"
             target="_blank"
             rel="noopener noreferrer"
             class="underline decoration-border underline-offset-2 outline-none transition-colors hover:text-primary"
@@ -342,13 +345,13 @@ useHead(() => ({
             </p>
             <p class="text-sm text-muted-foreground">{{ error }}</p>
             <Button
-              v-if="article?.link"
+              v-if="originalLink"
               variant="outline"
               size="sm"
               class="mt-1"
               as-child
             >
-              <a :href="article.link" target="_blank" rel="noopener noreferrer">
+              <a :href="originalLink" target="_blank" rel="noopener noreferrer">
                 Open the original page
                 <ExternalLink />
               </a>

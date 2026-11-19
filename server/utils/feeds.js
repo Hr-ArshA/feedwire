@@ -235,7 +235,8 @@ export async function refreshUserFeeds(userId) {
 /* ------------------------------------------------------------- read model */
 
 const ITEM_COLUMNS = `
-  i.id, i.feed_id, i.title, i.link, i.author, i.summary, i.comments_url,
+  i.id, i.feed_id, i.title, i.link, i.resolved_link, i.author, i.summary,
+  i.comments_url,
   i.published_at, i.fetched_at, i.category, i.category_score,
   (i.content_html IS NOT NULL) AS has_content,
   f.title AS feed_title, f.url AS feed_url
@@ -286,6 +287,7 @@ function mapRow(row) {
     feed_id: row.feed_id,
     title: row.title,
     link: row.link,
+    resolved_link: row.resolved_link,
     author: row.author,
     summary: row.summary,
     comments_url: row.comments_url,
