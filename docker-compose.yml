@@ -1,0 +1,34 @@
+services:
+  db:
+    image: postgres:17
+    container_name: feedwire-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: feedwire
+      POSTGRES_PASSWORD: feedwire
+      POSTGRES_DB: feedwire
+    ports:
+      - '5433:5432'
+    volumes:
+      - feedwire-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U feedwire -d feedwire']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:8.10-trixie
+    container_name: feedwire-redis
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'no', '--maxmemory', '256mb', '--maxmemory-policy', 'allkeys-lru']
+    ports:
+      - '6380:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  feedwire-db:

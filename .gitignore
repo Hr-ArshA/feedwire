@@ -1,0 +1,12 @@
+node_modules/
+dist/
+data/
+models/
+.hf-token
+*.log
+.DS_Store
+.nuxt/
+.output/
+.env
+*.db
+design.md
