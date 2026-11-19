@@ -37,6 +37,12 @@
   --cat-design: oklch(0.6 0.2 285);
   --cat-gaming: oklch(0.68 0.18 50);
   --cat-other: oklch(0.55 0.02 260);
+
+  --accent-orange: oklch(0.66 0.19 41);
+  --accent-blue: oklch(0.58 0.19 258);
+  --accent-emerald: oklch(0.6 0.15 160);
+  --accent-violet: oklch(0.6 0.2 295);
+  --accent-rose: oklch(0.62 0.21 15);
 }
 
 .dark {
@@ -71,6 +77,12 @@
   --cat-design: oklch(0.72 0.17 285);
   --cat-gaming: oklch(0.76 0.16 50);
   --cat-other: oklch(0.65 0.02 260);
+
+  --accent-orange: oklch(0.68 0.19 41);
+  --accent-blue: oklch(0.7 0.16 258);
+  --accent-emerald: oklch(0.72 0.13 160);
+  --accent-violet: oklch(0.72 0.17 295);
+  --accent-rose: oklch(0.72 0.18 15);
 }
 
 @theme inline {
@@ -119,4 +131,62 @@
       ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
       'Helvetica Neue', Arial, sans-serif;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Reader appearance. The settings page toggles these classes on <html>; they
+   are the only place where a user preference is allowed to change tokens.
+   --------------------------------------------------------------------------- */
+
+html.app-accent-blue {
+  --primary: var(--accent-blue);
+  --ring: var(--accent-blue);
+}
+
+html.app-accent-emerald {
+  --primary: var(--accent-emerald);
+  --ring: var(--accent-emerald);
+}
+
+html.app-accent-violet {
+  --primary: var(--accent-violet);
+  --ring: var(--accent-violet);
+}
+
+html.app-accent-rose {
+  --primary: var(--accent-rose);
+  --ring: var(--accent-rose);
+}
+
+html.app-accent-orange {
+  --primary: var(--accent-orange);
+  --ring: var(--accent-orange);
+}
+
+html.app-font-sans body {
+  font-family:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+}
+
+html.app-font-serif body {
+  font-family: ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
+}
+
+html.app-font-mono body {
+  font-family:
+    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono',
+    monospace;
+}
+
+html.app-size-sm {
+  font-size: 15px;
+}
+
+html.app-size-md {
+  font-size: 16px;
+}
+
+html.app-size-lg {
+  font-size: 17.5px;
 }

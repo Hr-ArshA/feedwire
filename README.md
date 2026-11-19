@@ -54,7 +54,11 @@ subscribers left and is not the public feed.
   result is stored once per `(item, language)` and shared.
 - **Offline**: installable PWA (manifest + service worker) plus an IndexedDB
   copy of every story you open, readable at `/saved` without a connection.
-- **OPML**: import and export subscriptions from the reader sidebar.
+- **OPML**: import and export subscriptions from the settings page.
+- **Settings** (`/settings`): device-local appearance (light/dark/system theme,
+  accent colour, font family, text size) plus OPML import/export and per-feed
+  management. Feeds are picked from a dropdown in the reader, and the
+  All/Unread/Favorites + read-here/original filters live in a dialog.
 - Hybrid search: PostgreSQL full-text (`tsvector`, Persian-normalised) fused
   with vector similarity via Reciprocal Rank Fusion. Once a story has been
   opened, its body text is indexed and embedded too, so searches match phrases

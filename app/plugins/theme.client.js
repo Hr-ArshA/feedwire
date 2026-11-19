@@ -1,8 +1,7 @@
+/**
+ * Applies the saved appearance (theme, accent, font, text size) before the app
+ * mounts, so the first paint already uses the reader's chosen look.
+ */
 export default defineNuxtPlugin(() => {
-  const media = window.matchMedia('(prefers-color-scheme: dark)');
-  const apply = () => {
-    document.documentElement.classList.toggle('dark', media.matches);
-  };
-  apply();
-  media.addEventListener('change', apply);
+  useAppearance().init();
 });

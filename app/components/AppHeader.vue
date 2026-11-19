@@ -25,11 +25,11 @@ const { user, logout } = useAuth();
         <Button variant="ghost" size="sm" as-child>
           <NuxtLink to="/">Home</NuxtLink>
         </Button>
-        <Button v-if="user" variant="ghost" size="sm" as-child>
-          <NuxtLink to="/reader">My reader</NuxtLink>
-        </Button>
         <Button variant="ghost" size="sm" as-child>
           <NuxtLink to="/saved">Offline</NuxtLink>
+        </Button>
+        <Button variant="ghost" size="sm" as-child>
+          <NuxtLink to="/settings">Settings</NuxtLink>
         </Button>
       </nav>
 

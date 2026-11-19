@@ -27,7 +27,6 @@ const {
   setQuery,
   setCategory,
   loadOpenMode,
-  setOpenMode,
   toggleRead,
   toggleFavorite,
   openItem,
@@ -158,19 +157,18 @@ onBeforeUnmount(() => {
     <Sidebar />
 
     <main class="min-w-0 pb-10">
-      <div class="mb-3 hidden items-center gap-2 sm:flex">
-        <AddFeedDialog />
+      <div class="mb-3 flex items-center gap-2 lg:hidden">
+        <FiltersDialog />
+        <FeedPicker class="min-w-0 flex-1" />
         <Button
           variant="outline"
+          size="icon"
           class="shrink-0"
           :disabled="state.refreshing"
           aria-label="Refresh all feeds"
           @click="refreshAll"
         >
           <RefreshCw :class="cn(state.refreshing && 'animate-spin')" />
-          <span class="hidden sm:inline">
-            {{ state.refreshing ? 'Refreshing…' : 'Refresh' }}
-          </span>
         </Button>
       </div>
 
@@ -232,31 +230,16 @@ onBeforeUnmount(() => {
 
           <Button
             variant="outline"
-            size="icon-sm"
-            class="shrink-0 sm:hidden"
+            class="hidden shrink-0 lg:inline-flex"
             :disabled="state.refreshing"
             aria-label="Refresh all feeds"
             @click="refreshAll"
           >
             <RefreshCw :class="cn(state.refreshing && 'animate-spin')" />
+            <span class="hidden xl:inline">
+              {{ state.refreshing ? 'Refreshing…' : 'Refresh' }}
+            </span>
           </Button>
-
-          <ToggleGroup
-            :model-value="state.openMode"
-            type="single"
-            aria-label="Where to open stories"
-            class="shrink-0"
-            @update:model-value="(value) => value && setOpenMode(value)"
-          >
-            <ToggleGroupItem value="internal">
-              <span class="hidden sm:inline">Read here</span>
-              <span class="sm:hidden">Here</span>
-            </ToggleGroupItem>
-            <ToggleGroupItem value="external">
-              <span class="hidden sm:inline">Original</span>
-              <span class="sm:hidden">Site</span>
-            </ToggleGroupItem>
-          </ToggleGroup>
         </div>
       </div>
 
