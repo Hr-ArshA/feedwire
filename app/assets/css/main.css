@@ -190,3 +190,21 @@ html.app-size-md {
 html.app-size-lg {
   font-size: 17.5px;
 }
+
+/* Respect the reader's motion preference everywhere, including toasts. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Persian UI: a readable Persian stack and a slightly larger line height. */
+html[dir='rtl'] body {
+  font-family: 'Vazirmatn', 'Segoe UI', Tahoma, sans-serif;
+  line-height: 1.75;
+}

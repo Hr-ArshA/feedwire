@@ -1,0 +1,11 @@
+node_modules
+.nuxt
+.output
+models
+.git
+.gitignore
+.env
+*.log
+design.md
+gn-test.mjs
+README.md

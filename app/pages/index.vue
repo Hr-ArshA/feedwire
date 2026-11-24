@@ -1,18 +1,35 @@
 <script setup>
 import { ArrowRight, Rss } from '@lucide/vue';
 import { Button } from '@/components/ui/button';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 
 const { user } = useAuth();
+const config = useRuntimeConfig();
+const siteUrl = String(config.public.siteUrl || '').replace(/\/+$/, '');
+
+useSeoMeta({
+  description:
+    'A live, categorised view of the Hacker News front page. Create a free account to add your own RSS feeds, keep read/unread state, star favourites and search everything in English or Persian.',
+  ogType: 'website',
+  ogSiteName: 'Feedwire',
+  ogTitle: 'Feedwire · Hacker News and your own feeds',
+  ogDescription:
+    'Read Hacker News and your own RSS feeds in one clean, bilingual reader.',
+  ogUrl: `${siteUrl}/`,
+  twitterCard: 'summary_large_image',
+  twitterTitle: 'Feedwire · Hacker News and your own feeds',
+  twitterDescription:
+    'Read Hacker News and your own RSS feeds in one clean, bilingual reader.',
+});
+
+useHead({ link: [{ rel: 'canonical', href: `${siteUrl}/` }] });
+
 const {
   state,
   loadItems,
   loadCategories,
-  setCategory,
   openItem,
   readHere,
   loadOpenMode,
-  setOpenMode,
 } = useReader('public');
 
 useHead({ title: 'Feedwire · Hacker News and your own feeds' });
@@ -71,29 +88,8 @@ onMounted(async () => {
           {{ state.total }} items
         </span>
       </div>
-      <ToggleGroup
-        :model-value="state.openMode"
-        type="single"
-        aria-label="Where to open stories"
-        class="shrink-0"
-        @update:model-value="(value) => value && setOpenMode(value)"
-      >
-        <ToggleGroupItem value="internal">
-          <span class="hidden sm:inline">Read here</span>
-          <span class="sm:hidden">Here</span>
-        </ToggleGroupItem>
-        <ToggleGroupItem value="external">
-          <span class="hidden sm:inline">Original</span>
-          <span class="sm:hidden">Site</span>
-        </ToggleGroupItem>
-      </ToggleGroup>
+      <FiltersDialog reader-key="public" class="shrink-0" />
     </div>
-
-    <CategoryChips
-      :categories="state.categories"
-      :active="state.category"
-      @select="setCategory"
-    />
 
     <ItemList
       :items="state.items"

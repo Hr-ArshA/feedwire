@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import ItemCard from './ItemCard.vue';
 
+const { t } = useI18n();
+
 const props = defineProps({
   items: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
@@ -19,7 +21,15 @@ const props = defineProps({
   },
 });
 
-defineEmits(['load-more', 'open', 'read-here', 'toggle-read', 'toggle-favorite']);
+defineEmits([
+  'load-more',
+  'open',
+  'read-here',
+  'toggle-read',
+  'toggle-favorite',
+  'toggle-read-later',
+  'mark-above',
+]);
 </script>
 
 <template>
@@ -60,16 +70,19 @@ defineEmits(['load-more', 'open', 'read-here', 'toggle-read', 'toggle-favorite']
 
     <div v-else class="overflow-hidden rounded-xl border bg-card">
       <ItemCard
-        v-for="item in props.items"
+        v-for="(item, index) in props.items"
         :key="item.id"
         :item="item"
         :selected="item.id === props.selectedId"
         :readonly="props.readonly"
         :categories="props.categories"
+        :markable="index > 0"
         @open="$emit('open', $event)"
         @read-here="$emit('read-here', $event)"
         @toggle-read="$emit('toggle-read', $event)"
         @toggle-favorite="$emit('toggle-favorite', $event)"
+        @toggle-read-later="$emit('toggle-read-later', $event)"
+        @mark-above="$emit('mark-above', $event)"
       />
     </div>
 
@@ -79,7 +92,7 @@ defineEmits(['load-more', 'open', 'read-here', 'toggle-read', 'toggle-favorite']
         :disabled="props.loading"
         @click="$emit('load-more')"
       >
-        {{ props.loading ? 'Loading…' : 'Load more' }}
+        {{ props.loading ? t('action.loading') : t('action.loadMore') }}
       </Button>
     </div>
   </section>

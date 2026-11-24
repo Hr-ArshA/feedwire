@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test
+
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: feedwire
+          POSTGRES_PASSWORD: feedwire
+          POSTGRES_DB: feedwire
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U feedwire -d feedwire"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:8
+        ports: ['6380:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL: postgres://feedwire:feedwire@localhost:5433/feedwire
+      REDIS_URL: redis://localhost:6380
+      SESSION_SECRET: ci-secret-ci-secret-ci-secret-32
+      SCHEDULER_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: node .output/server/index.mjs & sleep 15
+      - run: |
+          curl -fsS -X POST http://localhost:3000/api/auth/register \
+            -H 'content-type: application/json' \
+            -d '{"email":"demo@feedwire.local","password":"demopassword123","displayName":"Demo"}'
+      - run: npm run test:e2e

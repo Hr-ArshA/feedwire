@@ -1,10 +1,13 @@
+import { hostOf, intervalLabel } from '~/utils/format.js';
+import { queueReadState } from '~/lib/local-db.js';
+
 const PAGE_SIZE = 50;
 const OPEN_MODE_KEY = 'fw:open-mode';
 
 function initialState() {
   return {
     feeds: [],
-    stats: { total: 0, unread: 0, favorites: 0 },
+    stats: { total: 0, unread: 0, favorites: 0, read_later: 0 },
     items: [],
     hasMore: false,
     total: 0,
@@ -12,6 +15,8 @@ function initialState() {
     query: '',
     mode: 'hybrid',
     category: null,
+    tag: null,
+    tags: [],
     categories: [],
     index: {
       ready: false,
@@ -42,6 +47,7 @@ let indexTimer = null;
 export function useReader(key = 'reader') {
   const state = useState(key, initialState);
   const publicMode = key === 'public';
+  const { t } = useI18n();
 
   function notify(message, type = 'info') {
     state.value.toast = { message, type };
@@ -52,20 +58,23 @@ export function useReader(key = 'reader') {
   }
 
   const viewTitle = computed(() => {
-    if (state.value.view.kind === 'unread') return 'Unread';
-    if (state.value.view.kind === 'favorite') return 'Favorites';
+    if (state.value.view.kind === 'unread') return t('view.unread');
+    if (state.value.view.kind === 'favorite') return t('view.favorites');
+    if (state.value.view.kind === 'readlater') return t('view.readLater');
+    if (state.value.tag) return `#${state.value.tag}`;
     if (state.value.view.kind === 'feed') {
       const feed = state.value.feeds.find(
         (entry) => entry.id === state.value.view.feedId
       );
-      return feed?.title || 'Feed';
+      return feed?.title || t('view.feed');
     }
-    return publicMode ? 'Hacker News' : 'All items';
+    return publicMode ? t('view.hackerNews') : t('view.allItems');
   });
 
   function filterFor(kind) {
     if (kind === 'unread') return 'unread';
     if (kind === 'favorite') return 'favorite';
+    if (kind === 'readlater') return 'readlater';
     return 'all';
   }
 
@@ -88,6 +97,7 @@ export function useReader(key = 'reader') {
     if (publicMode) {
       if (state.value.query) params.set('q', state.value.query);
       if (state.value.category) params.set('category', state.value.category);
+      if (state.value.tag) params.set('tag', state.value.tag);
     } else {
       params.set('filter', filterFor(state.value.view.kind));
       if (state.value.view.kind === 'feed') {
@@ -124,6 +134,7 @@ export function useReader(key = 'reader') {
 
   function setView(kind, feedId = null) {
     state.value.view = { kind, feedId };
+    state.value.tag = null;
     state.value.selectedId = null;
     state.value.items = [];
     state.value.hasMore = false;
@@ -144,6 +155,23 @@ export function useReader(key = 'reader') {
     state.value.category =
       state.value.category === category ? null : category;
     return loadItems();
+  }
+
+  function setTag(tag) {
+    state.value.tag = state.value.tag === tag ? null : tag;
+    state.value.view = { kind: 'all', feedId: null };
+    state.value.items = [];
+    return loadItems();
+  }
+
+  async function loadTags() {
+    if (publicMode) return;
+    try {
+      const data = await $fetch('/api/tags');
+      state.value.tags = data.tags ?? [];
+    } catch {
+      /* tags are cosmetic */
+    }
   }
 
   function loadOpenMode() {
@@ -233,6 +261,14 @@ export function useReader(key = 'reader') {
       });
       state.value.stats = data.stats;
     } catch (error) {
+      if (import.meta.client && !navigator.onLine) {
+        queueReadState(item.id, next).catch(() => {});
+        navigator.serviceWorker?.ready
+          .then((registration) => registration.sync?.register('sync-read-state'))
+          .catch(() => {});
+        notify('Saved offline — it will sync when you reconnect');
+        return;
+      }
       item.is_read = previous;
       state.value.stats.unread += next ? 1 : -1;
       adjustFeedUnread(item.feed_id, next ? 1 : -1);
@@ -256,6 +292,31 @@ export function useReader(key = 'reader') {
     } catch (error) {
       item.is_favorite = !next;
       state.value.stats.favorites += next ? -1 : 1;
+      notify(error?.data?.error ?? error.message, 'error');
+    }
+  }
+
+  async function toggleReadLater(item) {
+    if (publicMode) return;
+    const next = !item.is_read_later;
+    item.is_read_later = next;
+    state.value.stats.read_later = Math.max(
+      0,
+      (state.value.stats.read_later ?? 0) + (next ? 1 : -1)
+    );
+    try {
+      const data = await $fetch(`/api/items/${item.id}`, {
+        method: 'PATCH',
+        body: { isReadLater: next },
+      });
+      state.value.stats = data.stats;
+      notify(next ? 'Saved to read later' : 'Removed from read later');
+    } catch (error) {
+      item.is_read_later = !next;
+      state.value.stats.read_later = Math.max(
+        0,
+        (state.value.stats.read_later ?? 0) + (next ? -1 : 1)
+      );
       notify(error?.data?.error ?? error.message, 'error');
     }
   }
@@ -332,6 +393,44 @@ export function useReader(key = 'reader') {
     }
   }
 
+  async function setFeedInterval(feed, minutes) {
+    if (publicMode) return;
+    try {
+      const data = await $fetch(`/api/feeds/${feed.id}`, {
+        method: 'PATCH',
+        body: { fetchIntervalMinutes: minutes },
+      });
+      state.value.feeds = data.feeds;
+      state.value.stats = data.stats;
+      notify(
+        minutes === 0
+          ? `${feed.title}: polling paused`
+          : `${feed.title}: refreshing every ${intervalLabel(minutes)}`
+      );
+    } catch (error) {
+      notify(error?.data?.error ?? error.message, 'error');
+    }
+  }
+
+  async function setFeedNotify(feed, enabled) {
+    if (publicMode) return;
+    try {
+      const data = await $fetch(`/api/feeds/${feed.id}`, {
+        method: 'PATCH',
+        body: { notify: enabled },
+      });
+      state.value.feeds = data.feeds;
+      state.value.stats = data.stats;
+      notify(
+        enabled
+          ? `Push notifications on for ${feed.title}`
+          : `Push notifications off for ${feed.title}`
+      );
+    } catch (error) {
+      notify(error?.data?.error ?? error.message, 'error');
+    }
+  }
+
   async function addFeed(rawUrl) {
     if (publicMode) return false;
     state.value.adding = true;
@@ -343,7 +442,11 @@ export function useReader(key = 'reader') {
       state.value.feeds = data.feeds;
       state.value.stats = data.stats;
 
-      if (data.reused) {
+      if (data.discovered) {
+        notify(
+          `Found the feed at ${hostOf(data.feed.url)} — added ${data.feed.title || 'feed'}`
+        );
+      } else if (data.reused) {
         notify(
           `${data.feed.title || 'Feed'} was already indexed — shared ${data.feeds.find((f) => f.id === data.feed.id)?.item_count ?? 0} items, no re-vectorising needed`
         );
@@ -436,6 +539,43 @@ export function useReader(key = 'reader') {
     }
   }
 
+  /**
+   * Everything above `item` in the current list becomes read. The API does the
+   * authoritative update; the local list is patched in place so the row does
+   * not jump while the user is looking at it.
+   */
+  async function markAboveRead(item) {
+    if (publicMode || !item) return;
+    const index = state.value.items.findIndex((entry) => entry.id === item.id);
+    const above = index > 0 ? state.value.items.slice(0, index) : [];
+    const unreadAbove = above.filter((entry) => !entry.is_read);
+
+    try {
+      const data = await $fetch('/api/items/read-above', {
+        method: 'POST',
+        body: { itemId: item.id },
+      });
+      state.value.feeds = data.feeds;
+      state.value.stats = data.stats;
+
+      if (state.value.view.kind === 'unread') {
+        await loadItems();
+      } else {
+        for (const entry of above) entry.is_read = true;
+      }
+
+      notify(
+        data.changed
+          ? `Marked ${data.changed} item${data.changed === 1 ? '' : 's'} above as read`
+          : unreadAbove.length
+            ? 'Nothing above was unread'
+            : 'Nothing above to mark'
+      );
+    } catch (error) {
+      notify(error?.data?.error ?? error.message, 'error');
+    }
+  }
+
   return {
     state,
     publicMode,
@@ -447,6 +587,8 @@ export function useReader(key = 'reader') {
     setQuery,
     setMode,
     setCategory,
+    setTag,
+    loadTags,
     loadOpenMode,
     setOpenMode,
     categoryLabel,
@@ -457,14 +599,18 @@ export function useReader(key = 'reader') {
     reindex,
     toggleRead,
     toggleFavorite,
+    toggleReadLater,
     openItem,
     readHere,
     refreshAll,
     refreshFeed,
+    setFeedInterval,
+    setFeedNotify,
     addFeed,
     removeFeed,
     importOpml,
     exportOpml,
     markAllRead,
+    markAboveRead,
   };
 }

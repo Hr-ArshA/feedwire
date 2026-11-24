@@ -84,3 +84,30 @@ export async function rateLimit(key, limit, windowSeconds) {
     return { allowed: true, remaining: limit };
   }
 }
+
+/** How many keys the cache currently holds, for the operator dashboard. */
+export async function cacheKeyCount() {
+  try {
+    const redis = await getRedis();
+    if (!redis) return null;
+    return await redis.dbSize();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Drops every cached entry. Sessions are cached under `sess:*`, after this the
+ * next request simply rebuilds them from PostgreSQL.
+ */
+export async function cacheFlush() {
+  try {
+    const redis = await getRedis();
+    if (!redis) return { ok: false, keys: 0 };
+    const keys = await redis.dbSize();
+    await redis.flushDb();
+    return { ok: true, keys };
+  } catch {
+    return { ok: false, keys: 0 };
+  }
+}

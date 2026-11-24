@@ -1,8 +1,9 @@
 <script setup>
-import { computed } from 'vue';
-import { ChevronDown, Rss } from '@lucide/vue';
+import { computed, nextTick, ref, watch } from 'vue';
+import { ChevronDown, Rss, Search } from '@lucide/vue';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +19,10 @@ const props = defineProps({
 
 const { state, setView } = useReader();
 
+const open = ref(false);
+const query = ref('');
+const searchInput = ref(null);
+
 const current = computed(() => {
   if (state.value.view.kind !== 'feed') return null;
   return (
@@ -30,10 +35,27 @@ const current = computed(() => {
 const label = computed(
   () => current.value?.title || (current.value ? hostOf(current.value.url) : 'All feeds')
 );
+
+const filteredFeeds = computed(() => {
+  const q = query.value.trim().toLowerCase();
+  if (!q) return state.value.feeds;
+  return state.value.feeds.filter((feed) =>
+    `${feed.title ?? ''} ${hostOf(feed.url)}`.toLowerCase().includes(q)
+  );
+});
+
+function focusSearch(event) {
+  event.preventDefault();
+  nextTick(() => searchInput.value?.$el?.focus());
+}
+
+watch(open, (value) => {
+  if (!value) query.value = '';
+});
 </script>
 
 <template>
-  <DropdownMenu>
+  <DropdownMenu v-model:open="open">
     <DropdownMenuTrigger as-child>
       <Button
         variant="outline"
@@ -51,7 +73,30 @@ const label = computed(
     <DropdownMenuContent
       align="start"
       class="max-h-[min(60vh,22rem)] w-[min(20rem,calc(100vw-2rem))] overflow-y-auto"
+      @open-auto-focus="focusSearch"
     >
+      <div
+        class="sticky top-0 z-10 -mx-1 -mt-1 mb-1 border-b bg-popover p-1"
+        @keydown.stop
+        @keyup.stop
+        @pointerdown.stop
+      >
+        <div class="relative flex items-center">
+          <Search
+            class="pointer-events-none absolute left-2.5 size-3.5 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <Input
+            ref="searchInput"
+            v-model="query"
+            type="search"
+            placeholder="Search feeds"
+            aria-label="Search feeds"
+            class="h-8 pl-8 text-sm"
+          />
+        </div>
+      </div>
+
       <DropdownMenuItem
         :class="state.view.kind === 'all' && 'bg-accent text-accent-foreground'"
         @select="setView('all')"
@@ -63,7 +108,7 @@ const label = computed(
       </DropdownMenuItem>
 
       <DropdownMenuItem
-        v-for="feed in state.feeds"
+        v-for="feed in filteredFeeds"
         :key="feed.id"
         :class="
           state.view.kind === 'feed' &&
@@ -86,6 +131,13 @@ const label = computed(
           {{ feed.unread_count }}
         </Badge>
       </DropdownMenuItem>
+
+      <p
+        v-if="state.feeds.length && !filteredFeeds.length"
+        class="px-2 py-3 text-xs text-muted-foreground"
+      >
+        No feeds match your search.
+      </p>
 
       <p
         v-if="!state.feeds.length"

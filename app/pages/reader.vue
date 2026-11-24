@@ -1,18 +1,13 @@
 <script setup>
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
-import {
-  HardDriveDownload,
-  Layers,
-  Loader2,
-  RefreshCw,
-  Search,
-} from '@lucide/vue';
+import { Loader2, RefreshCw, Search } from '@lucide/vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { cn } from '@/lib/utils';
 
 definePageMeta({ middleware: 'auth' });
+useSeoMeta({ robots: 'noindex,nofollow' });
 useHead({ title: 'My reader · Feedwire' });
 
 const {
@@ -25,23 +20,27 @@ const {
   stopIndexPolling,
   setMode,
   setQuery,
-  setCategory,
   loadOpenMode,
   toggleRead,
   toggleFavorite,
+  toggleReadLater,
+  loadTags,
   openItem,
   readHere,
   refreshAll,
   markAllRead,
+  markAboveRead,
 } = useReader();
+
+const { t } = useI18n();
 
 const search = ref(null);
 let searchTimer = null;
 
 const modes = [
-  { id: 'hybrid', label: 'Hybrid' },
-  { id: 'keyword', label: 'Keyword' },
-  { id: 'semantic', label: 'Semantic' },
+  { id: 'hybrid', label: 'mode.hybrid' },
+  { id: 'keyword', label: 'mode.keyword' },
+  { id: 'semantic', label: 'mode.semantic' },
 ];
 
 const shortcuts = [
@@ -139,6 +138,7 @@ onMounted(async () => {
     state.value.error = error?.data?.error ?? error.message;
   }
   loadCategories();
+  loadTags();
   startIndexPolling();
   await loadItems();
 });
@@ -165,7 +165,7 @@ onBeforeUnmount(() => {
           size="icon"
           class="shrink-0"
           :disabled="state.refreshing"
-          aria-label="Refresh all feeds"
+          :aria-label="t('action.refreshAll')"
           @click="refreshAll"
         >
           <RefreshCw :class="cn(state.refreshing && 'animate-spin')" />
@@ -176,7 +176,7 @@ onBeforeUnmount(() => {
         <div class="flex min-w-0 items-baseline gap-2.5">
           <h1 class="truncate text-xl font-bold tracking-tight">{{ viewTitle }}</h1>
           <span class="shrink-0 text-xs text-muted-foreground">
-            {{ state.items.length }} shown
+            {{ state.items.length }} {{ t('reader.shown') }}
           </span>
           <span
             v-if="state.index.pending"
@@ -184,7 +184,7 @@ onBeforeUnmount(() => {
             :title="`${state.index.model} · dot-product index`"
           >
             <Loader2 class="size-3 animate-spin" />
-            Indexing {{ state.index.embedded }}/{{ state.index.total }}
+            {{ t('reader.indexing') }} {{ state.index.embedded }}/{{ state.index.total }}
           </span>
         </div>
 
@@ -193,7 +193,7 @@ onBeforeUnmount(() => {
             v-if="state.query"
             :model-value="state.mode"
             type="single"
-            aria-label="Search mode"
+            :aria-label="t('reader.searchMode')"
             @update:model-value="(value) => value && setMode(value)"
           >
             <ToggleGroupItem
@@ -201,7 +201,7 @@ onBeforeUnmount(() => {
               :key="mode.id"
               :value="mode.id"
             >
-              {{ mode.label }}
+              {{ t(mode.label) }}
             </ToggleGroupItem>
           </ToggleGroup>
 
@@ -215,8 +215,8 @@ onBeforeUnmount(() => {
             <Input
               ref="search"
               type="search"
-              aria-label="Search items"
-              placeholder="Search items  ( / )"
+              :aria-label="t('reader.searchItems')"
+              :placeholder="`${t('reader.searchItems')}  ( / )`"
               class="pl-9 sm:w-[220px] focus-visible:sm:w-[280px]"
               @input="onSearchInput"
               @keydown.esc="clearSearch"
@@ -224,31 +224,24 @@ onBeforeUnmount(() => {
           </div>
 
           <Button variant="outline" class="shrink-0" @click="markAllRead">
-            <span class="hidden sm:inline">Mark all read</span>
-            <span class="sm:hidden">Read all</span>
+            <span class="hidden sm:inline">{{ t('action.markAllRead') }}</span>
+            <span class="sm:hidden">{{ t('action.readAll') }}</span>
           </Button>
 
           <Button
             variant="outline"
             class="hidden shrink-0 lg:inline-flex"
             :disabled="state.refreshing"
-            aria-label="Refresh all feeds"
+            :aria-label="t('action.refreshAll')"
             @click="refreshAll"
           >
             <RefreshCw :class="cn(state.refreshing && 'animate-spin')" />
             <span class="hidden xl:inline">
-              {{ state.refreshing ? 'Refreshing…' : 'Refresh' }}
+              {{ state.refreshing ? t('action.refreshing') : t('action.refresh') }}
             </span>
           </Button>
         </div>
       </div>
-
-      <CategoryChips
-        class="lg:hidden"
-        :categories="state.categories"
-        :active="state.category"
-        @select="setCategory"
-      />
 
       <ItemList
         :items="state.items"
@@ -257,17 +250,19 @@ onBeforeUnmount(() => {
         :has-more="state.hasMore"
         :categories="state.categories"
         :selected-id="state.selectedId"
-        :empty-title="state.query ? 'No matches' : 'Nothing here yet'"
+        :empty-title="state.query ? t('reader.noMatches') : t('reader.nothingHere')"
         :empty-text="
           state.query
-            ? 'No items match your search.'
-            : 'Refresh your feeds or add a new one to get started.'
+            ? t('reader.noMatchText')
+            : t('reader.emptyText')
         "
         @load-more="loadItems({ append: true })"
         @open="openItem"
         @read-here="readHere"
         @toggle-read="toggleRead"
         @toggle-favorite="toggleFavorite"
+        @toggle-read-later="toggleReadLater"
+        @mark-above="markAboveRead"
       />
 
       <p
@@ -292,36 +287,7 @@ onBeforeUnmount(() => {
 
     <AddFeedDialog mode="fab" />
 
-    <nav
-      class="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)] print:hidden lg:hidden"
-      aria-label="Mobile navigation"
-    >
-      <div class="mx-auto flex max-w-md items-stretch justify-around px-2">
-        <button
-          type="button"
-          class="flex flex-1 flex-col items-center gap-0.5 rounded-md py-2 text-[11px] font-medium text-primary outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/40"
-          @click="setView('all')"
-        >
-          <Layers class="size-5" />
-          Reader
-        </button>
-        <button
-          type="button"
-          class="flex flex-1 flex-col items-center gap-0.5 rounded-md py-2 text-[11px] font-medium text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
-          @click="focusSearch"
-        >
-          <Search class="size-5" />
-          Search
-        </button>
-        <NuxtLink
-          to="/saved"
-          class="flex flex-1 flex-col items-center gap-0.5 rounded-md py-2 text-[11px] font-medium text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40"
-        >
-          <HardDriveDownload class="size-5" />
-          Offline
-        </NuxtLink>
-      </div>
-    </nav>
+    <MobileNav active="reader" @search="focusSearch" />
 
     <Transition
       enter-active-class="transition duration-200 ease-out"
@@ -331,6 +297,8 @@ onBeforeUnmount(() => {
     >
       <div
         v-if="state.toast"
+        role="status"
+        aria-live="polite"
         :class="
           cn(
             'fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-lg border bg-popover px-4 py-2 text-sm shadow-lg lg:bottom-6',

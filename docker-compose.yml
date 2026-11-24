@@ -1,6 +1,9 @@
 services:
   db:
-    image: postgres:17
+    # pgvector ships the extension used for HNSW semantic search. The app falls
+    # back to a real[] scan when the extension is unavailable, so a plain
+    # postgres:17 image also works: set POSTGRES_IMAGE=postgres:17.
+    image: ${POSTGRES_IMAGE:-pgvector/pgvector:pg17}
     container_name: feedwire-db
     restart: unless-stopped
     environment:
@@ -29,6 +32,45 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+
+  app:
+    build:
+      context: .
+      args:
+        HF_TOKEN: ${HF_TOKEN:-}
+    container_name: feedwire-app
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://feedwire:feedwire@db:5432/feedwire
+      REDIS_URL: redis://redis:6379
+      SESSION_SECRET: ${SESSION_SECRET:-change-me-in-production-please-32-bytes-min}
+      PUBLIC_FEED_URL: ${PUBLIC_FEED_URL:-https://news.ycombinator.com/rss}
+      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-http://localhost:3000}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-true}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@feedwire.local}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+      FEEDWIRE_ROOT: /app
+      NODE_ENV: production
+    ports:
+      - '3000:3000'
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
 
 volumes:
   feedwire-db:

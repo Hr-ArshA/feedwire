@@ -1,6 +1,7 @@
 const DB_NAME = 'feedwire';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE = 'articles';
+const PENDING = 'pending-read';
 
 let dbPromise = null;
 
@@ -16,6 +17,9 @@ function openDb() {
         if (!db.objectStoreNames.contains(STORE)) {
           const store = db.createObjectStore(STORE, { keyPath: 'id' });
           store.createIndex('savedAt', 'savedAt');
+        }
+        if (!db.objectStoreNames.contains(PENDING)) {
+          db.createObjectStore(PENDING, { keyPath: 'id' });
         }
       };
       request.onsuccess = () => resolve(request.result);
@@ -93,4 +97,46 @@ export async function saveLocalTranslation(id, translation) {
 
 export async function clearLocalArticles() {
   return run('readwrite', (store) => store.clear());
+}
+
+function runStore(storeName, mode, action) {
+  return openDb().then(
+    (db) =>
+      new Promise((resolve, reject) => {
+        const transaction = db.transaction(storeName, mode);
+        const store = transaction.objectStore(storeName);
+        let request;
+        try {
+          request = action(store);
+        } catch (error) {
+          reject(error);
+          return;
+        }
+        transaction.oncomplete = () => resolve(request?.result ?? null);
+        transaction.onerror = () => reject(transaction.error);
+        transaction.onabort = () => reject(transaction.error);
+      })
+  );
+}
+
+/**
+ * Read-state changes made while offline are queued here. The service worker's
+ * Background Sync handler (or the next online event) replays them.
+ */
+export function queueReadState(itemId, isRead) {
+  return runStore(PENDING, 'readwrite', (store) =>
+    store.put({ id: Number(itemId), isRead: Boolean(isRead), at: Date.now() })
+  );
+}
+
+export async function listPendingReads() {
+  return (await runStore(PENDING, 'readonly', (store) => store.getAll())) ?? [];
+}
+
+export function clearPendingRead(itemId) {
+  return runStore(PENDING, 'readwrite', (store) => store.delete(Number(itemId)));
+}
+
+export function clearPendingReads() {
+  return runStore(PENDING, 'readwrite', (store) => store.clear());
 }

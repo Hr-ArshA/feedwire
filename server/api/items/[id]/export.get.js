@@ -1,6 +1,13 @@
 import { getSessionUser } from '../../../utils/auth.js';
 import { getArticle } from '../../../utils/article-store.js';
-import { buildExport, isExportFormat } from '../../../utils/article-export.js';
+import { getTranslation } from '../../../utils/translate.js';
+import { enforceRateLimit } from '../../../utils/limits.js';
+import {
+  buildExport,
+  buildTranslationExport,
+  contentDisposition,
+  isExportFormat,
+} from '../../../utils/article-export.js';
 
 /**
  * Downloads the cached article as HTML, Markdown or plain text. PDF is produced
@@ -17,6 +24,8 @@ export default defineEventHandler(async (event) => {
   }
 
   const format = String(getQuery(event).format ?? 'html').toLowerCase();
+  await enforceRateLimit(event, 'article-export', 60, 3600);
+  const lang = String(getQuery(event).lang ?? '').trim().toLowerCase();
   if (!isExportFormat(format)) {
     throw createError({
       statusCode: 400,
@@ -27,6 +36,22 @@ export default defineEventHandler(async (event) => {
 
   const user = await getSessionUser(event);
   const article = await getArticle(itemId, user?.id ?? null);
+
+  if (lang) {
+    const translation = await getTranslation(itemId, lang);
+    if (!translation?.text) {
+      throw createError({
+        statusCode: 404,
+        statusMessage: 'Translation is not available',
+        data: { error: 'Get the translation first, then export it.' },
+      });
+    }
+    const exported = buildTranslationExport(article, translation, format);
+    setHeader(event, 'content-type', exported.contentType);
+    setHeader(event, 'content-disposition', contentDisposition(exported.filename));
+    setHeader(event, 'cache-control', 'private, max-age=0, must-revalidate');
+    return exported.body;
+  }
 
   if (!article.html) {
     throw createError({
@@ -39,7 +64,7 @@ export default defineEventHandler(async (event) => {
   const { body, contentType, filename } = buildExport(article, format);
 
   setHeader(event, 'content-type', contentType);
-  setHeader(event, 'content-disposition', `attachment; filename="${filename}"`);
+  setHeader(event, 'content-disposition', contentDisposition(filename));
   setHeader(event, 'cache-control', 'private, max-age=0, must-revalidate');
   return body;
 });

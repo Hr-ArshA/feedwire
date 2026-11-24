@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 
 useHead({ title: 'Sign in · Feedwire' });
 
+useSeoMeta({ robots: 'noindex,nofollow' });
+
 const { login } = useAuth();
 
 const email = ref('');
@@ -50,9 +52,17 @@ async function submit() {
       </div>
 
       <div class="flex flex-col gap-1.5">
-        <label for="password" class="text-xs font-semibold text-muted-foreground">
-          Password
-        </label>
+        <div class="flex items-center justify-between gap-2">
+          <label for="password" class="text-xs font-semibold text-muted-foreground">
+            Password
+          </label>
+          <NuxtLink
+            to="/forgot"
+            class="text-xs font-medium text-muted-foreground outline-none hover:text-primary focus-visible:text-primary"
+          >
+            Forgot password?
+          </NuxtLink>
+        </div>
         <Input
           id="password"
           v-model="password"

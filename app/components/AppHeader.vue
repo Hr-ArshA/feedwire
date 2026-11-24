@@ -3,6 +3,9 @@ import { HardDriveDownload, LogOut, Rss } from '@lucide/vue';
 import { Button } from '@/components/ui/button';
 
 const { user, logout } = useAuth();
+const { t } = useI18n();
+
+const isAdmin = computed(() => user.value?.role === 'admin');
 </script>
 
 <template>
@@ -23,13 +26,19 @@ const { user, logout } = useAuth();
 
       <nav class="ml-4 hidden items-center gap-1 sm:flex">
         <Button variant="ghost" size="sm" as-child>
-          <NuxtLink to="/">Home</NuxtLink>
+          <NuxtLink to="/">{{ t('nav.home') }}</NuxtLink>
         </Button>
         <Button variant="ghost" size="sm" as-child>
-          <NuxtLink to="/saved">Offline</NuxtLink>
+          <NuxtLink to="/explore">{{ t('nav.explore') }}</NuxtLink>
         </Button>
         <Button variant="ghost" size="sm" as-child>
-          <NuxtLink to="/settings">Settings</NuxtLink>
+          <NuxtLink to="/saved">{{ t('nav.offline') }}</NuxtLink>
+        </Button>
+        <Button variant="ghost" size="sm" as-child>
+          <NuxtLink to="/settings">{{ t('nav.settings') }}</NuxtLink>
+        </Button>
+        <Button v-if="isAdmin" variant="ghost" size="sm" as-child>
+          <NuxtLink to="/admin">{{ t('nav.admin') }}</NuxtLink>
         </Button>
       </nav>
 
@@ -38,7 +47,7 @@ const { user, logout } = useAuth();
           variant="ghost"
           size="icon-sm"
           class="sm:hidden"
-          aria-label="Offline library"
+          :aria-label="t('nav.offline')"
           as-child
         >
           <NuxtLink to="/saved">
@@ -51,15 +60,15 @@ const { user, logout } = useAuth();
           </span>
           <Button variant="outline" size="sm" @click="logout">
             <LogOut />
-            <span class="hidden sm:inline">Sign out</span>
+            <span class="hidden sm:inline">{{ t('action.signOut') }}</span>
           </Button>
         </template>
         <template v-else>
           <Button variant="ghost" size="sm" as-child>
-            <NuxtLink to="/login">Sign in</NuxtLink>
+            <NuxtLink to="/login">{{ t('action.signIn') }}</NuxtLink>
           </Button>
           <Button size="sm" as-child>
-            <NuxtLink to="/register">Create account</NuxtLink>
+            <NuxtLink to="/register">{{ t('action.createAccount') }}</NuxtLink>
           </Button>
         </template>
       </div>

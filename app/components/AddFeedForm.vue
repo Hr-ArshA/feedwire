@@ -28,11 +28,11 @@ async function submit() {
     <Input
       ref="input"
       v-model="url"
-      type="url"
+      type="text"
       inputmode="url"
       spellcheck="false"
-      aria-label="Feed URL"
-      placeholder="Paste an RSS or Atom feed URL…"
+      aria-label="Feed or site URL"
+      placeholder="Paste a site or feed URL…"
       class="pl-9"
     />
     <Button type="submit" :disabled="state.adding">

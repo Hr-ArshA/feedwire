@@ -1,9 +1,14 @@
 import { createSession, hashPassword, pruneSessions } from '../../utils/auth.js';
 import { ensurePublicFeed, subscribe } from '../../utils/feeds.js';
+import { clientIp, enforceRateLimit } from '../../utils/limits.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default defineEventHandler(async (event) => {
+  // Sign-up is the cheapest way to fill the database, so it is throttled per
+  // address as well as per email further down.
+  await enforceRateLimit(event, 'register', 5, 3600, `ip:${clientIp(event)}`);
+
   const body = await readBody(event);
   const email = String(body?.email ?? '').trim().toLowerCase();
   const password = String(body?.password ?? '');
@@ -37,7 +42,7 @@ export default defineEventHandler(async (event) => {
   const { rows } = await query(
     `INSERT INTO users (email, password_hash, display_name)
      VALUES ($1, $2, $3)
-     RETURNING id, email, display_name`,
+     RETURNING id, email, display_name, role`,
     [email, passwordHash, displayName || email.split('@')[0]]
   );
   const user = rows[0];
@@ -54,6 +59,7 @@ export default defineEventHandler(async (event) => {
       id: user.id,
       email: user.email,
       displayName: user.display_name,
+      role: user.role,
     },
   };
 });

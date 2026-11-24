@@ -8,6 +8,8 @@ import { timeAgo } from '@/utils/format.js';
 
 useHead({ title: 'Offline library · Feedwire' });
 
+useSeoMeta({ robots: 'noindex,nofollow' });
+
 const articles = ref([]);
 const loading = ref(true);
 const failure = ref(null);
@@ -29,11 +31,15 @@ async function remove(article) {
   articles.value = articles.value.filter((entry) => entry.id !== article.id);
 }
 
+function goSearch() {
+  navigateTo('/reader');
+}
+
 onMounted(load);
 </script>
 
 <template>
-  <div class="mx-auto max-w-[760px] px-3 py-5 sm:px-6 sm:py-8">
+  <div class="mx-auto max-w-[760px] px-3 py-5 pb-24 sm:px-6 sm:py-8 lg:pb-8">
     <div class="mb-4 flex items-center justify-between gap-3">
       <Button variant="ghost" size="sm" as-child>
         <NuxtLink to="/reader">
@@ -108,5 +114,7 @@ onMounted(load);
         </Button>
       </li>
     </ul>
+
+    <MobileNav active="offline" @search="goSearch" />
   </div>
 </template>

@@ -5,14 +5,36 @@ import { Button } from '@/components/ui/button';
 import { hostOf, timeAgo } from '@/utils/format.js';
 
 const route = useRoute();
+useSeoMeta({ robots: 'noindex,nofollow' });
 const itemId = Number(route.params.id);
 const requestFetch = useRequestFetch();
+const lang = String(route.query.lang ?? '').trim().toLowerCase();
 
 const { data: article, error } = await useAsyncData(`print:${itemId}`, () =>
   requestFetch(`/api/items/${itemId}/content`)
 );
 
+const { data: translation } = await useAsyncData(
+  `print:${itemId}:${lang || 'src'}`,
+  () =>
+    lang
+      ? requestFetch(`/api/items/${itemId}/translation?lang=${lang}`)
+      : Promise.resolve(null),
+  { server: Boolean(lang) }
+);
+
+const paragraphs = computed(() =>
+  String(translation.value?.translation?.text ?? '')
+    .split(/\n{2,}/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+);
+
 const failure = computed(() => {
+  if (lang) {
+    if (paragraphs.value.length) return null;
+    return 'Translation is not available for this story yet.';
+  }
   if (article.value?.html) return null;
   return (
     error.value?.data?.error ??
@@ -35,7 +57,9 @@ const meta = computed(() => {
 });
 
 useHead(() => ({
-  title: article.value?.title ? `${article.value.title} · Print` : 'Print · Feedwire',
+  title: article.value?.title
+    ? `${article.value.title}${lang ? ' (ترجمه)' : ''} · Print`
+    : 'Print · Feedwire',
 }));
 
 function printPage() {
@@ -83,6 +107,31 @@ onMounted(() => {
     >
       {{ failure }}
     </div>
+
+    <article v-else-if="article && lang && paragraphs.length" class="print:text-black" dir="rtl">
+      <h1 class="text-2xl leading-snug font-bold tracking-tight print:text-xl">
+        {{ translation?.translation?.title || article.title }}
+      </h1>
+      <p class="mt-2 mb-6 text-xs text-muted-foreground print:text-black">
+        ترجمه ماشینی توسط گوگل ترنسلیت
+      </p>
+
+      <div class="text-[15px] leading-8">
+        <p v-for="(part, index) in paragraphs" :key="index" class="my-3">
+          {{ part }}
+        </p>
+      </div>
+
+      <p
+        v-if="article.link"
+        class="mt-8 border-t pt-4 text-xs break-all text-muted-foreground print:text-black"
+      >
+        Source:
+        <a :href="article.link" class="underline underline-offset-2">
+          {{ article.link }}
+        </a>
+      </p>
+    </article>
 
     <article v-else-if="article" class="print:text-black">
       <h1 class="text-2xl leading-snug font-bold tracking-tight print:text-xl">

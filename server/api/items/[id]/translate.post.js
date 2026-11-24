@@ -1,6 +1,7 @@
 import { getSessionUser } from '../../../utils/auth.js';
 import { getArticle } from '../../../utils/article-store.js';
 import { translateItem } from '../../../utils/translate.js';
+import { enforceRateLimit } from '../../../utils/limits.js';
 
 const LANG = /^[a-z]{2}(-[a-z]{2})?$/i;
 
@@ -24,6 +25,9 @@ export default defineEventHandler(async (event) => {
   const lang = LANG.test(raw) ? raw.toLowerCase() : 'fa';
 
   const user = await getSessionUser(event);
+  // Translation hits an external service in up to 24 chunks, so it is the
+  // most expensive endpoint a reader can trigger.
+  await enforceRateLimit(event, 'translate', 15, 600);
   const article = await getArticle(itemId, user?.id ?? null);
 
   if (!article.html) {

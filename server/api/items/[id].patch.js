@@ -16,6 +16,8 @@ export default defineEventHandler(async (event) => {
   const state = await updateItemState(user.id, itemId, {
     isRead: typeof body?.isRead === 'boolean' ? body.isRead : null,
     isFavorite: typeof body?.isFavorite === 'boolean' ? body.isFavorite : null,
+    isReadLater:
+      typeof body?.isReadLater === 'boolean' ? body.isReadLater : null,
   });
   const stats = await getStats(user.id);
 
@@ -24,6 +26,7 @@ export default defineEventHandler(async (event) => {
       id: itemId,
       is_read: state.is_read,
       is_favorite: state.is_favorite,
+      is_read_later: state.is_read_later,
     },
     stats,
   };

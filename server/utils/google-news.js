@@ -25,6 +25,38 @@ export function isGoogleNewsUrl(raw) {
   }
 }
 
+const GOOGLE_HOST = /(^|\.)google\.[a-z]{2,}(\.[a-z]{2,})?$/i;
+
+/**
+ * `https://www.google.com/url?q=<real url>` is a redirect interstitial, not a
+ * page. Anything that stores or follows it ends up showing Google's
+ * "Redirect Notice" text as the article, so it is never a valid target.
+ */
+export function isGoogleRedirectUrl(raw) {
+  try {
+    const url = new URL(String(raw));
+    if (!GOOGLE_HOST.test(url.hostname)) return false;
+    if (url.pathname !== '/url') return false;
+    const target = url.searchParams.get('q') ?? url.searchParams.get('url');
+    return Boolean(target && /^https?:\/\//i.test(target));
+  } catch {
+    return false;
+  }
+}
+
+/** Returns the real URL behind a Google redirect link, or null. */
+export function unwrapGoogleRedirect(raw) {
+  if (!isGoogleRedirectUrl(raw)) return null;
+  try {
+    const url = new URL(String(raw));
+    const target = url.searchParams.get('q') ?? url.searchParams.get('url');
+    if (!/^https?:\/\//i.test(target)) return null;
+    return isGoogleRedirectUrl(target) ? unwrapGoogleRedirect(target) : target;
+  } catch {
+    return null;
+  }
+}
+
 function articleIdOf(raw) {
   try {
     const parts = new URL(String(raw)).pathname.split('/').filter(Boolean);
@@ -37,9 +69,13 @@ function articleIdOf(raw) {
 function pickPublisherUrl(value) {
   if (typeof value !== 'string') return null;
   if (!/^https?:\/\//i.test(value)) return null;
+  // Google wraps outgoing links in its own /url page; the real publisher is
+  // inside, and that is what we actually want to store.
+  const unwrapped = unwrapGoogleRedirect(value);
+  if (unwrapped) return unwrapped;
   try {
     const host = new URL(value).hostname;
-    if (/(^|\.)google\.com$/i.test(host)) return null;
+    if (GOOGLE_HOST.test(host)) return null;
   } catch {
     return null;
   }

@@ -1,12 +1,18 @@
 import { getSessionUser } from '../../utils/auth.js';
 import { getStats, listItems } from '../../utils/feeds.js';
+import { enforceRateLimit } from '../../utils/limits.js';
 
-const FILTERS = new Set(['all', 'unread', 'favorite']);
+const FILTERS = new Set(['all', 'unread', 'favorite', 'readlater']);
 const MODES = new Set(['hybrid', 'keyword', 'semantic']);
 
 export default defineEventHandler(async (event) => {
   const user = await getSessionUser(event);
   const params = getQuery(event);
+
+  // A search runs an embedding pass plus two ranked queries; browsing does not.
+  if (String(params.q ?? '').trim()) {
+    await enforceRateLimit(event, 'search', 90, 300);
+  }
 
   const limit = Math.min(Math.max(Number(params.limit) || 50, 1), 100);
   const offset = Math.max(Number(params.offset) || 0, 0);
@@ -20,6 +26,7 @@ export default defineEventHandler(async (event) => {
     q: params.q ?? '',
     mode,
     category: params.category || null,
+    tag: params.tag || null,
     limit,
     offset,
   });

@@ -1,4 +1,4 @@
-node_modules/
+﻿node_modules/
 dist/
 data/
 models/
@@ -8,5 +8,15 @@ models/
 .nuxt/
 .output/
 .env
+.env.*
+!.env.example
 *.db
-design.md
+cookies.txt
+body.json
+*.tmp
+coverage/
+.vscode/
+backups/
+playwright-report/
+test-results/
+.tmp-*

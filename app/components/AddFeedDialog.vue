@@ -1,8 +1,9 @@
 <script setup>
-import { nextTick, ref, watch } from 'vue';
-import { Plus, Rss } from '@lucide/vue';
+import { computed, nextTick, ref, watch } from 'vue';
+import { Check, Loader2, Plus, Rss, Sparkles } from '@lucide/vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { POPULAR_FEEDS, sameFeedUrl } from '@/lib/popular-feeds.js';
 import {
   Dialog,
   DialogContent,
@@ -24,6 +25,21 @@ const { state, addFeed } = useReader();
 const open = ref(false);
 const url = ref('');
 const input = ref(null);
+const addingUrl = ref(null);
+
+const subscribed = computed(() => state.value.feeds.map((feed) => feed.url));
+
+function isSubscribed(feed) {
+  return subscribed.value.some((value) => sameFeedUrl(value, feed.url));
+}
+
+async function addSuggested(feed) {
+  if (addingUrl.value || isSubscribed(feed)) return;
+  addingUrl.value = feed.url;
+  const added = await addFeed(feed.url);
+  addingUrl.value = null;
+  if (added) open.value = false;
+}
 
 watch(open, async (value) => {
   if (!value) return;
@@ -66,12 +82,13 @@ async function submit() {
       </Button>
     </DialogTrigger>
 
-    <DialogContent>
+    <DialogContent class="max-h-[85dvh] overflow-y-auto">
       <DialogHeader>
         <DialogTitle>Add a feed</DialogTitle>
         <DialogDescription>
-          Paste an RSS or Atom URL. Feeds are shared across everyone, so a feed
-          that is already indexed is reused without re-vectorising its stories.
+          Paste a feed URL or just the website — we look for its RSS/Atom feed.
+          Feeds are shared across everyone, so a feed that is already indexed is
+          reused without re-vectorising its stories.
         </DialogDescription>
       </DialogHeader>
 
@@ -84,11 +101,11 @@ async function submit() {
           <Input
             ref="input"
             v-model="url"
-            type="url"
+            type="text"
             inputmode="url"
             spellcheck="false"
-            aria-label="Feed URL"
-            placeholder="https://example.com/feed.xml"
+            aria-label="Feed or site URL"
+            placeholder="example.com or https://example.com/feed.xml"
             class="pl-9"
           />
         </div>
@@ -99,6 +116,49 @@ async function submit() {
           </Button>
         </DialogFooter>
       </form>
+
+      <div class="border-t pt-4">
+        <p
+          class="mb-2.5 inline-flex items-center gap-1.5 text-[11px] font-bold tracking-[0.08em] text-muted-foreground uppercase"
+        >
+          <Sparkles class="size-3 text-primary" />
+          Popular feeds
+        </p>
+
+        <ul class="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+          <li v-for="feed in POPULAR_FEEDS" :key="feed.url">
+            <button
+              type="button"
+              :disabled="isSubscribed(feed) || addingUrl === feed.url"
+              :class="
+                cn(
+                  'flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/40',
+                  isSubscribed(feed)
+                    ? 'border-border bg-muted/50 text-muted-foreground'
+                    : 'border-border bg-card hover:border-ring/60 hover:bg-accent'
+                )
+              "
+              @click="addSuggested(feed)"
+            >
+              <span class="min-w-0 flex-1">
+                <span class="block truncate font-medium">{{ feed.title }}</span>
+                <span class="block truncate text-[11px] text-muted-foreground">
+                  {{ feed.tag }}
+                </span>
+              </span>
+              <Loader2
+                v-if="addingUrl === feed.url"
+                class="size-4 shrink-0 animate-spin text-primary"
+              />
+              <Check
+                v-else-if="isSubscribed(feed)"
+                class="size-4 shrink-0 text-primary"
+              />
+              <Plus v-else class="size-4 shrink-0 text-muted-foreground" />
+            </button>
+          </li>
+        </ul>
+      </div>
     </DialogContent>
   </Dialog>
 </template>

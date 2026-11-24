@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 
 useHead({ title: 'Create account · Feedwire' });
 
+useSeoMeta({ robots: 'noindex,nofollow' });
+
 const { register } = useAuth();
 
 const displayName = ref('');

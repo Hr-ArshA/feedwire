@@ -171,6 +171,25 @@ const FORMATS = {
   txt: { extension: 'txt', contentType: 'text/plain; charset=utf-8' },
 };
 
+/**
+ * HTTP headers are Latin-1: a Persian title in `filename="…"` makes Node throw
+ * ERR_INVALID_CHAR. Send an ASCII fallback plus an RFC 5987 UTF-8 filename.
+ */
+export function contentDisposition(filename) {
+  const fallback =
+    String(filename ?? '')
+      .normalize('NFKD')
+      .replace(/[^\x20-\x7e]/g, '')
+      .replace(/["\\]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim() || 'article';
+  const encoded = encodeURIComponent(filename).replace(
+    /['()*]/g,
+    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`
+  );
+  return `attachment; filename="${fallback}"; filename*=UTF-8''${encoded}`;
+}
+
 export function isExportFormat(format) {
   return Object.hasOwn(FORMATS, format);
 }
@@ -188,5 +207,78 @@ export function buildExport(article, format) {
     body,
     contentType: spec.contentType,
     filename: `${slugify(article.title)}.${spec.extension}`,
+  };
+}
+
+function translationParagraphs(text) {
+  return String(text ?? '')
+    .split(/\n{2,}/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function translationDocument(article, translation) {
+  const title = escapeHtml(translation.title || article.title || 'ترجمه');
+  const source = article.link
+    ? `<p class="source">منبع: <a href="${escapeHtml(article.link)}">${escapeHtml(article.link)}</a></p>`
+    : '';
+  const body = translationParagraphs(translation.text)
+    .map((part) => `<p>${escapeHtml(part)}</p>`)
+    .join('\n');
+
+  return `<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${title}</title>
+<style>
+  :root { color-scheme: light; }
+  body { margin: 0; background: #fff; color: #1a1a1a;
+    font: 17px/1.9 Vazirmatn, Tahoma, ui-sans-serif, system-ui, sans-serif; }
+  article { max-width: 720px; margin: 0 auto; padding: 48px 24px 64px; }
+  h1 { font-size: 1.7rem; line-height: 1.5; margin: 0 0 12px; }
+  .meta { margin: 0 0 28px; color: #666; font-size: 13px; }
+  p { margin: 0 0 14px; }
+  a { color: #b4501a; }
+  .source { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e5e5;
+    color: #666; font-size: 13px; word-break: break-all; }
+</style>
+</head>
+<body>
+<article>
+  <h1>${title}</h1>
+  <p class="meta">ترجمه ماشینی توسط گوگل ترنسلیت · ${escapeHtml(article.feed_title ?? '')}</p>
+  ${body}
+  ${source}
+</article>
+</body>
+</html>
+`;
+}
+
+/**
+ * Exports the Persian translation instead of the original body. The reader and
+ * the print page both use this so a translated story can leave the app too.
+ */
+export function buildTranslationExport(article, translation, format) {
+  const spec = FORMATS[format];
+  if (!spec) throw new Error(`Unsupported export format: ${format}`);
+
+  const paragraphs = translationParagraphs(translation.text);
+  let body;
+  if (format === 'html') body = translationDocument(article, translation);
+  else if (format === 'md') {
+    body = [`# ${translation.title || article.title || ''}`, '', ...paragraphs.map((part) => `${part}\n`)]
+      .join('\n')
+      .trim();
+  } else {
+    body = [translation.title || article.title || '', '', ...paragraphs].join('\n\n').trim();
+  }
+
+  return {
+    body,
+    contentType: spec.contentType,
+    filename: `${slugify(translation.title || article.title)}-fa.${spec.extension}`,
   };
 }

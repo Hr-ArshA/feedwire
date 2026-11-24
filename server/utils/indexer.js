@@ -1,6 +1,7 @@
 import { classify, embedPassages, loadModel, toArray } from './embeddings.js';
 import { MODEL_ID } from './model.js';
 import { embeddableContent } from './article.js';
+import { vectorEnabled } from './db.js';
 
 const BATCH_SIZE = 6;
 const IDLE_DELAY = 4000;
@@ -41,6 +42,11 @@ function schedule(delay) {
   timer = setTimeout(tick, delay);
 }
 
+/** pgvector accepts a text literal like `[0.1,0.2]`. */
+function vectorLiteral(array) {
+  return `[${Array.from(array, (value) => Number(value)).join(',')}]`;
+}
+
 /** Headline pass: embed the title + summary and assign a category. */
 async function embedHeadlines() {
   const { rows } = await query(
@@ -65,16 +71,19 @@ async function embedHeadlines() {
       row.title,
       row.summary
     );
-    await query(
-      `UPDATE items
+    const values = [row.id, toArray(vector), MODEL_ID, category, score, source];
+    let sql = `UPDATE items
           SET embedding = $2::real[],
               embedding_model = $3,
               category = $4,
               category_score = $5,
-              category_source = $6
-        WHERE id = $1 AND embedding IS NULL`,
-      [row.id, toArray(vector), MODEL_ID, category, score, source]
-    );
+              category_source = $6`;
+    if (vectorEnabled()) {
+      values.push(vectorLiteral(vector));
+      sql += `, embedding_vec = $7::vector`;
+    }
+    sql += ' WHERE id = $1 AND embedding IS NULL';
+    await query(sql, values);
     status.processed += 1;
   }
   return true;
@@ -91,6 +100,7 @@ async function embedBodies() {
        FROM items
       WHERE content_embedding IS NULL
         AND content_text IS NOT NULL
+        AND content_partial = false
       ORDER BY id
       LIMIT $1`,
     [BATCH_SIZE]
@@ -103,13 +113,16 @@ async function embedBodies() {
 
   for (let index = 0; index < rows.length; index += 1) {
     const row = rows[index];
-    await query(
-      `UPDATE items
+    const values = [row.id, toArray(vectors[index]), MODEL_ID];
+    let sql = `UPDATE items
           SET content_embedding = $2::real[],
-              content_embedding_model = $3
-        WHERE id = $1 AND content_embedding IS NULL`,
-      [row.id, toArray(vectors[index]), MODEL_ID]
-    );
+              content_embedding_model = $3`;
+    if (vectorEnabled()) {
+      values.push(vectorLiteral(vectors[index]));
+      sql += `, content_embedding_vec = $4::vector`;
+    }
+    sql += ' WHERE id = $1 AND content_embedding IS NULL';
+    await query(sql, values);
   }
   return true;
 }
@@ -147,12 +160,15 @@ export function startIndexer() {
 }
 
 export async function reindexAll() {
+  const vectorReset = vectorEnabled()
+    ? ', embedding_vec = NULL, content_embedding_vec = NULL'
+    : '';
   await query(
     `UPDATE items
         SET embedding = NULL,
             category = NULL,
             category_score = NULL,
-            content_embedding = NULL`
+            content_embedding = NULL${vectorReset}`
   );
   status.processed = 0;
   schedule(50);

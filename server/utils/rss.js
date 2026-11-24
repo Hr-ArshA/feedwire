@@ -172,6 +172,15 @@ export function parseFeed(xml, feedUrl) {
 }
 
 export async function fetchFeed(feedUrl) {
+  try {
+    return await fetchDirect(feedUrl);
+  } catch (error) {
+    if (!shouldMirror(error)) throw error;
+    return fetchViaGoogleNews(feedUrl, error);
+  }
+}
+
+async function fetchDirect(feedUrl) {
   const { status, buffer, finalUrl } = await safeFetch(feedUrl, {
     maxBytes: MAX_BYTES,
     timeoutMs: 20_000,
@@ -185,4 +194,86 @@ export async function fetchFeed(feedUrl) {
   }
 
   return parseFeed(buffer.toString('utf8'), finalUrl || feedUrl);
+}
+
+/**
+ * Some publishers (BBC is the common one) refuse connections from certain
+ * networks. When the direct fetch fails at the network or 401/403/429/5xx
+ * level, fall back to a Google News search feed for the same site so the
+ * subscription still works. Items then point at Google News and are resolved
+ * to the publisher URL by the normal Google News resolver.
+ */
+function shouldMirror(error) {
+  const message = String(error?.message ?? '');
+  if (
+    /Could not reach|timed out|fetch failed|ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket|That address is not allowed|Could not resolve/i.test(
+      message
+    )
+  ) {
+    return true;
+  }
+  return /HTTP (401|403|429|5\d\d)\b/.test(message);
+}
+
+const MIRROR_SITES = {
+  'feeds.bbci.co.uk': 'bbc.com',
+  'bbci.co.uk': 'bbc.com',
+  'bbc.co.uk': 'bbc.com',
+  'bbc.com': 'bbc.com',
+};
+
+function mirrorSiteHost(feedUrl) {
+  let host;
+  try {
+    host = new URL(feedUrl).hostname.toLowerCase().replace(/^www\./, '');
+  } catch {
+    return null;
+  }
+  if (MIRROR_SITES[host]) return MIRROR_SITES[host];
+  const parts = host.split('.');
+  if (parts.length > 2 && ['feeds', 'rss', 'feed'].includes(parts[0])) {
+    return parts.slice(1).join('.');
+  }
+  return host;
+}
+
+function publisherFromTitles(items, host) {
+  for (const item of items) {
+    const match = / - ([^-]{2,40})$/.exec(String(item.title ?? ''));
+    if (match) return match[1].trim();
+  }
+  return host.replace(/^www\./, '');
+}
+
+async function fetchViaGoogleNews(feedUrl, originalError) {
+  const host = mirrorSiteHost(feedUrl);
+  if (!host) throw originalError;
+
+  const mirrorUrl =
+    'https://news.google.com/rss/search?q=' +
+    encodeURIComponent(`site:${host}`) +
+    '&hl=en-US&gl=US&ceid=US:en';
+
+  try {
+    const { status, buffer, finalUrl } = await safeFetch(mirrorUrl, {
+      maxBytes: MAX_BYTES,
+      timeoutMs: 20_000,
+      accept: 'application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8',
+      userAgent: 'Feedwire/2.0 (+self-hosted RSS reader)',
+    });
+    if (status >= 400) throw new Error(`Mirror responded with HTTP ${status}`);
+
+    const parsed = parseFeed(buffer.toString('utf8'), finalUrl || mirrorUrl);
+    if (!parsed.items.length) throw new Error('Mirror returned no items');
+
+    return {
+      ...parsed,
+      title: `${publisherFromTitles(parsed.items, host)} (via Google News)`,
+      siteUrl: `https://${host}`,
+    };
+  } catch {
+    throw new Error(
+      `${originalError.message}. This network cannot reach the publisher; use a VPN or proxy, or add the site through Google News.`
+    );
+  }
 }

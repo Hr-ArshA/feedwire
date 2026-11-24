@@ -5,6 +5,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 <template>
   <TooltipProvider>
     <div class="min-h-dvh bg-background text-foreground">
+      <RouteProgress />
       <AppHeader />
       <slot />
     </div>
